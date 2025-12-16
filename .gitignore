@@ -5,5 +5,3 @@ __pycache__/
 *.so
 *.dll
 .DS_Store
-results/
-
