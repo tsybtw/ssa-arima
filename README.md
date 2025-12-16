@@ -19,13 +19,13 @@ pip install -r requirements.txt
 ### Базовий запуск (з тестовими даними)
 
 ```bash
-python main.py
+python src/main.py
 ```
 
 ### Запуск з власними даними
 
 ```bash
-python main.py --data my_data.csv --column price
+python src/main.py --data my_data.csv --column price
 ```
 
 ## Параметри командного рядка
@@ -41,7 +41,7 @@ python main.py --data my_data.csv --column price
 | `--arima-d` | int | 1 | Параметр d для ARIMA (порядок інтегрування) |
 | `--arima-q` | int | 2 | Параметр q для ARIMA (порядок ковзного середнього) |
 | `--forecast` | int | 20 | Кількість кроків прогнозу |
-| `--output-dir` | str | . | Директорія для збереження графіків |
+| `--output-dir` | str | results | Директорія для збереження графіків (створюється автоматично) |
 | `--no-plots` | flag | False | Не показувати графіки (тільки зберегти) |
 | `--use-db` | flag | False | Використати базу даних SQLite замість CSV/тестових даних |
 | `--db-path` | str | rockets.db | Шлях до файлу бази даних SQLite |
@@ -52,37 +52,37 @@ python main.py --data my_data.csv --column price
 ### Генерація 500 точок з іншим seed
 
 ```bash
-python main.py --points 500 --seed 123
+python src/main.py --points 500 --seed 123
 ```
 
 ### SSA з більшим вікном
 
 ```bash
-python main.py --window 100
+python src/main.py --window 100
 ```
 
 ### ARIMA(1,1,1) з прогнозом на 50 кроків
 
 ```bash
-python main.py --arima-p 1 --arima-d 1 --arima-q 1 --forecast 50
+python src/main.py --arima-p 1 --arima-d 1 --arima-q 1 --forecast 50
 ```
 
 ### Збереження графіків в окрему папку без показу
 
 ```bash
-python main.py --output-dir ./results --no-plots
+python src/main.py --output-dir ./results --no-plots
 ```
 
 ### Повний приклад з власними даними
 
 ```bash
-python main.py --data sales.csv --column revenue --window 30 --arima-p 2 --arima-d 1 --arima-q 1 --forecast 12 --output-dir ./output
+python src/main.py --data sales.csv --column revenue --window 30 --arima-p 2 --arima-d 1 --arima-q 1 --forecast 12 --output-dir ./output
 ```
 
 ### Використання бази даних запусків ракет
 
 ```bash
-python main.py --use-db --db-path rockets.db --db-metric count_per_year --window 30 --forecast 20
+python src/main.py --use-db --db-path rockets.db --db-metric count_per_year --window 30 --forecast 20
 ```
 
 ## Архітектура програми
@@ -193,7 +193,7 @@ sequenceDiagram
     participant ARIMAa as ARIMAAnalyzer
     participant SSA as SSA (library)
 
-    User->>CLI: запуск програми (python main.py ...)
+    User->>CLI: запуск програми (python src/main.py ...)
     CLI->>CLI: parse_args()
 
     alt Використати БД запусків (--use-db)
@@ -267,15 +267,24 @@ classDiagram
 
 ```
 .
-├── main.py                 # Головна програма з CLI інтерфейсом
-├── ssa_caterpillar.py      # Бібліотека реалізації методу SSA (Гусениця)
-├── rocket_db.py            # Модуль роботи з базою даних запусків ракет
-├── requirements.txt        # Залежності Python
-├── README.md              # Документація проекту
-├── uml_classes.mmd         # Діаграма класів (Mermaid)
-├── uml_sequence_main.mmd   # Діаграма послідовності (Mermaid)
-├── uml_db_detail.mmd       # Діаграма БД (Mermaid)
-└── *.png                   # Згенеровані графіки результатів
+├── src/
+│   ├── main.py                 # Головна програма з CLI інтерфейсом
+│   ├── database/
+│   │   ├── __init__.py
+│   │   └── rocket_db.py        # Модуль роботи з базою даних запусків ракет
+│   └── ssa/
+│       ├── __init__.py
+│       └── caterpillar.py      # Бібліотека реалізації методу SSA (Гусениця)
+├── diagrams/
+│   ├── uml_classes.mmd         # Діаграма класів (Mermaid)
+│   ├── uml_sequence_main.mmd   # Діаграма послідовності (Mermaid)
+│   └── uml_db_detail.mmd       # Діаграма БД (Mermaid)
+├── results/                      # Згенеровані графіки результатів
+│   ├── ssa_results.png
+│   ├── arima_results.png
+│   └── comparison.png
+├── requirements.txt              # Залежності Python
+└── README.md                    # Документація проекту
 ```
 
 ## Результати
@@ -284,23 +293,23 @@ classDiagram
 
 Декомпозиція часового ряду на тренд, періодичні компоненти та шум:
 
-![SSA Результати](ssa_results.png)
+![SSA Результати](results/ssa_results.png)
 
 ### ARIMA Прогнозування
 
 Прогноз з 95% довірчим інтервалом та аналіз залишків:
 
-![ARIMA Результати](arima_results.png)
+![ARIMA Результати](results/arima_results.png)
 
 ### Порівняння методів
 
 SSA реконструкція vs ARIMA прогноз:
 
-![Порівняння](comparison.png)
+![Порівняння](results/comparison.png)
 
 ## Вихідні файли
 
-Програма генерує три графіки:
+Програма генерує три графіки (за замовчуванням зберігаються в каталозі `results/`, який створюється автоматично; шлях можна змінити прапорцем `--output-dir`):
 
 - `ssa_results.png` — результати SSA аналізу (тренд, періодика, шум, реконструкція)
 - `arima_results.png` — результати ARIMA (прогноз з довірчим інтервалом, залишки)
@@ -355,7 +364,7 @@ date,temperature,humidity
 - **Мова:** Python 3.x
 - **Бібліотеки:** numpy, pandas, matplotlib, scipy, statsmodels, sqlite3
 - **Архітектура:** Модульна з розділенням відповідальності між компонентами
-- **Бібліотека SSA:** Власна реалізація методу Caterpillar-SSA (`ssa_caterpillar.py`)
+- **Бібліотека SSA:** Власна реалізація методу Caterpillar-SSA (`src/ssa/caterpillar.py`)
 
 ## Додаткова інформація
 

@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+
+# Додаємо корінь проекту до sys.path для коректної роботи імпортів
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,8 +14,8 @@ from statsmodels.tsa.stattools import adfuller
 import argparse
 import warnings
 
-from ssa_caterpillar import SSA as LibrarySSA
-from rocket_db import RocketLaunchDB
+from src.ssa import SSA as LibrarySSA
+from src.database import RocketLaunchDB
 
 warnings.filterwarnings('ignore')
 
@@ -194,8 +202,8 @@ def parse_args():
                         help='Параметр q для ARIMA (за замовчуванням: 2)')
     parser.add_argument('--forecast', type=int, default=20,
                         help='Кількість кроків прогнозу (за замовчуванням: 20)')
-    parser.add_argument('--output-dir', type=str, default='.',
-                        help='Директорія для збереження графіків (за замовчуванням: поточна)')
+    parser.add_argument('--output-dir', type=str, default='results',
+                        help='Директорія для збереження графіків (створюється автоматично)')
     parser.add_argument('--no-plots', action='store_true',
                         help='Не показувати графіки (тільки зберегти)')
     parser.add_argument('--use-db', action='store_true',
@@ -360,12 +368,13 @@ class ForecastPipeline:
                  window_length: int,
                  arima_order=(2, 1, 2),
                  forecast_steps=20,
-                 output_dir="."):
+                 output_dir="results"):
         self.dataset = dataset
         self.window_length = window_length
         self.arima_order = arima_order
         self.forecast_steps = forecast_steps
-        self.output_dir = output_dir.rstrip('/\\')
+        self.output_dir = Path(output_dir).expanduser()
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.ssa_analyzer = SSAAnalyzer(dataset, window_length=window_length)
         self.arima_analyzer = ARIMAAnalyzer(dataset,
@@ -384,19 +393,19 @@ class ForecastPipeline:
             plt.ioff()
 
         # 1. SSA
-        ssa_path = f"{self.output_dir}/ssa_results.png"
+        ssa_path = self.output_dir / "ssa_results.png"
         print(f"   Збереження SSA графіків: {ssa_path}")
         self.ssa_analyzer.analyze()
         self.ssa_analyzer.plot(ssa_path)
 
         # 2. ARIMA
-        arima_path = f"{self.output_dir}/arima_results.png"
+        arima_path = self.output_dir / "arima_results.png"
         print(f"   Збереження ARIMA графіків: {arima_path}")
         self.arima_analyzer.analyze()
         self.arima_analyzer.plot(arima_path)
 
         # 3. Порівняння
-        comparison_path = f"{self.output_dir}/comparison.png"
+        comparison_path = self.output_dir / "comparison.png"
         print(f"   Збереження порівняння: {comparison_path}")
         components = self.ssa_analyzer.components
         ssa_reconstructed = components[0] + components[1]
