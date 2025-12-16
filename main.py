@@ -1,93 +1,27 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.linalg import svd
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.stattools import adfuller
 import argparse
 import warnings
+
+from ssa_caterpillar import SSA as LibrarySSA
+from rocket_db import RocketLaunchDB
+
 warnings.filterwarnings('ignore')
 
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
 
-class SSA:
-    def __init__(self, time_series, window_length=None):
-        self.original_series = np.array(time_series)
-        self.N = len(time_series)
-        
-        if window_length is None:
-            self.L = self.N // 2
-        else:
-            self.L = window_length
-            
-        self.K = self.N - self.L + 1
-        self.trajectory_matrix = None
-        self.U = None
-        self.S = None
-        self.V = None
-        self.reconstructed_components = None
-        
-    def embed(self):
-        self.trajectory_matrix = np.zeros((self.L, self.K))
-        for i in range(self.K):
-            self.trajectory_matrix[:, i] = self.original_series[i:i + self.L]
-        return self.trajectory_matrix
-    
-    def decompose(self):
-        if self.trajectory_matrix is None:
-            self.embed()
-        self.U, self.S, Vt = svd(self.trajectory_matrix, full_matrices=False)
-        self.V = Vt.T
-        return self.U, self.S, self.V
-    
-    def _diagonal_averaging(self, matrix):
-        L, K = matrix.shape
-        N = L + K - 1
-        result = np.zeros(N)
-        counts = np.zeros(N)
-        for i in range(L):
-            for j in range(K):
-                result[i + j] += matrix[i, j]
-                counts[i + j] += 1
-        return result / counts
-    
-    def reconstruct(self, groups=None):
-        if self.S is None:
-            self.decompose()
-        if groups is None:
-            groups = [[i] for i in range(min(len(self.S), 10))]
-        self.reconstructed_components = []
-        for group in groups:
-            component_matrix = np.zeros((self.L, self.K))
-            for idx in group:
-                if idx < len(self.S):
-                    component_matrix += self.S[idx] * np.outer(self.U[:, idx], self.V[:, idx])
-            reconstructed = self._diagonal_averaging(component_matrix)
-            self.reconstructed_components.append(reconstructed)
-        return self.reconstructed_components
-    
-    def get_contributions(self, n_components=10):
-        if self.S is None:
-            self.decompose()
-        total_variance = np.sum(self.S ** 2)
-        contributions = (self.S ** 2) / total_variance * 100
-        return contributions[:n_components]
-    
-    def forecast(self, steps=10, use_components=None):
-        if use_components is None:
-            use_components = [0, 1, 2]
-        groups = [use_components]
-        reconstructed = self.reconstruct(groups)[0]
-        forecast_values = list(reconstructed)
-        for _ in range(steps):
-            trend = np.polyfit(range(len(forecast_values[-20:])), forecast_values[-20:], 1)
-            next_val = trend[0] * len(forecast_values) + trend[1]
-            forecast_values.append(next_val)
-        return np.array(forecast_values[-steps:])
-
-
 def arima_analysis(time_series, order=(1, 1, 1), forecast_steps=10):
+    """
+    Допоміжна функція для побудови моделі ARIMA та отримання прогнозу.
+
+    На діаграмі її зручно розглядати як «чорну скриньку»,
+    що реалізує класичний статистичний підхід до прогнозування
+    часових рядів для порівняння з SSA.
+    """
     adf_result = adfuller(time_series)
     model = ARIMA(time_series, order=order)
     fitted_model = model.fit()
@@ -109,6 +43,12 @@ def arima_analysis(time_series, order=(1, 1, 1), forecast_steps=10):
 
 
 def generate_sample_data(n_points=200, seed=42):
+    """
+    Генерація штучного часового ряду.
+
+    Це тестові дані для демонстрації роботи алгоритмів,
+    які можна інтерпретувати як, наприклад, температуру або вологість.
+    """
     np.random.seed(seed)
     t = np.arange(n_points)
     trend = 0.05 * t + 10
@@ -258,8 +198,223 @@ def parse_args():
                         help='Директорія для збереження графіків (за замовчуванням: поточна)')
     parser.add_argument('--no-plots', action='store_true',
                         help='Не показувати графіки (тільки зберегти)')
+    parser.add_argument('--use-db', action='store_true',
+                        help='Використовувати SQLite БД запусків ракет замість CSV/штучних даних')
+    parser.add_argument('--db-path', type=str, default='rockets.db',
+                        help='Шлях до файлу SQLite БД (за замовчуванням: rockets.db)')
+    parser.add_argument('--db-metric', type=str, default='count_per_year',
+                        help='Метрика для часових рядів з БД: count_per_year або avg_payload_per_year')
     
     return parser.parse_args()
+
+
+class TimeSeriesDataset:
+    """
+    Клас «Набір часових даних».
+
+    На UML-діаграмі це окремий блок «Джерело даних». Він відповідає
+    за завантаження та зберігання часового ряду, але не виконує
+    жодних розрахунків.
+    """
+
+    def __init__(self, values, name="Без назви", units=None, source=None):
+        """
+        :param values: одномірний numpy-масив або список значень
+        :param name: ім'я набору (наприклад, «Температура повітря»)
+        :param units: одиниці вимірювання (наприклад, «°C»)
+        :param source: опис джерела («CSV файл», «БД», «тестові дані»)
+        """
+        self.values = np.array(values)
+        self.name = name
+        self.units = units
+        self.source = source
+
+    @classmethod
+    def from_csv(cls, file_path, column=None, name=None, units=None):
+        """
+        Створення набору даних з CSV-файлу.
+
+        Цей метод можна зв'язати на діаграмі з блоком «Підключення БД /
+        зовнішніх файлів». Поки що використовуємо простий варіант – CSV.
+        """
+        data = load_csv_data(file_path, column)
+        if name is None:
+            name = f"Дані з файлу {file_path}"
+        return cls(data, name=name, units=units, source="CSV файл")
+
+    @classmethod
+    def from_weather_example(cls, n_points=200, seed=42):
+        """
+        Приклад тестового набору даних «Погода» (температура/вологість).
+
+        Надалі в звіті можна показати цей набір як демонстраційний
+        для тестування алгоритму.
+        """
+        series, *_ = generate_sample_data(n_points=n_points, seed=seed)
+        return cls(series,
+                   name="Тестовий часовий ряд (погода)",
+                   units="ум. од.",
+                   source="Згенеровані дані")
+
+
+class SSAAnalyzer:
+    """
+    Клас-виконавець SSA-аналізу для заданого набору даних.
+
+    В архітектурі програми він є обчислювальним блоком, який
+    отримує на вхід TimeSeriesDataset і повертає компоненти:
+    тренд, періодика, шум.
+    """
+
+    def __init__(self, dataset: TimeSeriesDataset, window_length: int):
+        self.dataset = dataset
+        self.window_length = window_length
+        # Використовуємо бібліотечну реалізацію SSA з модуля ssa_caterpillar
+        self.ssa = LibrarySSA(dataset.values, window_length=window_length)
+        self.components = None
+        self.groups = None
+        self.contributions = None
+
+    def analyze(self):
+        """
+        Запускає повний цикл SSA:
+        1) вкладення,
+        2) SVD,
+        3) групування,
+        4) реконструкція.
+        """
+        self.ssa.embed()
+        self.ssa.decompose()
+        self.contributions = self.ssa.get_contributions(10)
+
+        # Типова схема групування:
+        #   перша компонента – тренд,
+        #   друга і третя – періодичність,
+        #   інші – шум.
+        self.groups = [[0], [1, 2], list(range(3, 15))]
+        self.components = self.ssa.reconstruct(self.groups)
+        return self.components
+
+    def plot(self, save_path):
+        """
+        Побудова фігури з основними результатами SSA.
+
+        На UML-діаграмі це можна показати як вихідний інтерфейс
+        для модуля візуалізації.
+        """
+        if self.components is None:
+            self.analyze()
+        plot_ssa_results(self.ssa, self.dataset.values,
+                         self.components,
+                         "SSA Аналіз (Метод Гусениця)",
+                         save_path)
+        return save_path
+
+
+class ARIMAAnalyzer:
+    """
+    Клас для аналізу того самого часового ряду за допомогою ARIMA.
+
+    Його зручно відобразити на UML як окремий обчислювальний блок,
+    який конкурує/порівнюється з SSAAnalyzer.
+    """
+
+    def __init__(self, dataset: TimeSeriesDataset, order=(2, 1, 2), forecast_steps=20):
+        self.dataset = dataset
+        self.order = order
+        self.forecast_steps = forecast_steps
+        self.results = None
+
+    def analyze(self):
+        """Запускає оцінку моделі ARIMA та формує словник результатів."""
+        self.results = arima_analysis(
+            self.dataset.values,
+            order=self.order,
+            forecast_steps=self.forecast_steps
+        )
+        return self.results
+
+    def plot(self, save_path):
+        """
+        Побудова графіків прогнозу ARIMA та залишків.
+        """
+        if self.results is None:
+            self.analyze()
+        plot_arima_results(self.dataset.values,
+                           self.results,
+                           self.forecast_steps,
+                           save_path)
+        return save_path
+
+
+class ForecastPipeline:
+    """
+    Клас «Конвеєр прогнозування».
+
+    На UML-діаграмі цей клас можна показати як головний керуючий блок:
+    він отримує дані (TimeSeriesDataset), запускає обчислення
+    (SSAAnalyzer, ARIMAAnalyzer) і передає результати модулю візуалізації.
+    """
+
+    def __init__(self, dataset: TimeSeriesDataset,
+                 window_length: int,
+                 arima_order=(2, 1, 2),
+                 forecast_steps=20,
+                 output_dir="."):
+        self.dataset = dataset
+        self.window_length = window_length
+        self.arima_order = arima_order
+        self.forecast_steps = forecast_steps
+        self.output_dir = output_dir.rstrip('/\\')
+
+        self.ssa_analyzer = SSAAnalyzer(dataset, window_length=window_length)
+        self.arima_analyzer = ARIMAAnalyzer(dataset,
+                                            order=arima_order,
+                                            forecast_steps=forecast_steps)
+
+    def run(self, show_plots=True):
+        """
+        Основний сценарій роботи програми:
+        1) SSA-аналіз,
+        2) ARIMA-аналіз,
+        3) побудова та збереження всіх графіків,
+        4) порівняння методів.
+        """
+        if show_plots is False:
+            plt.ioff()
+
+        # 1. SSA
+        ssa_path = f"{self.output_dir}/ssa_results.png"
+        print(f"   Збереження SSA графіків: {ssa_path}")
+        self.ssa_analyzer.analyze()
+        self.ssa_analyzer.plot(ssa_path)
+
+        # 2. ARIMA
+        arima_path = f"{self.output_dir}/arima_results.png"
+        print(f"   Збереження ARIMA графіків: {arima_path}")
+        self.arima_analyzer.analyze()
+        self.arima_analyzer.plot(arima_path)
+
+        # 3. Порівняння
+        comparison_path = f"{self.output_dir}/comparison.png"
+        print(f"   Збереження порівняння: {comparison_path}")
+        components = self.ssa_analyzer.components
+        ssa_reconstructed = components[0] + components[1]
+        plot_comparison(self.dataset.values,
+                        ssa_reconstructed,
+                        self.arima_analyzer.results['forecast'],
+                        self.forecast_steps,
+                        comparison_path)
+
+        return {
+            "ssa_analyzer": self.ssa_analyzer,
+            "arima_analyzer": self.arima_analyzer,
+            "paths": {
+                "ssa": ssa_path,
+                "arima": arima_path,
+                "comparison": comparison_path
+            }
+        }
 
 
 def main():
@@ -271,103 +426,86 @@ def main():
     print("=" * 70)
     print()
     
+    # 1. Блок «Джерело даних»
+    #    На UML-діаграмі це окремий прямокутник TimeSeriesDataset.
     print("1. ЗАВАНТАЖЕННЯ ДАНИХ")
     print("-" * 40)
-    
+
     if args.data:
         print(f"   Завантаження з файлу: {args.data}")
-        time_series = load_csv_data(args.data, args.column)
-        print(f"   Завантажено точок: {len(time_series)}")
+        dataset = TimeSeriesDataset.from_csv(
+            args.data,
+            column=args.column,
+            name="Користувацький часовий ряд",
+            units="ум. од."
+        )
+        print(f"   Завантажено точок: {len(dataset.values)}")
     else:
-        print(f"   Генерація тестових даних...")
-        time_series, _, _, _, _ = generate_sample_data(args.points, args.seed)
-        print(f"   Згенеровано точок: {len(time_series)}")
+        print(f"   Генерація тестових даних (приклад «погода»)...")
+        dataset = TimeSeriesDataset.from_weather_example(
+            n_points=args.points,
+            seed=args.seed
+        )
+        print(f"   Згенеровано точок: {len(dataset.values)}")
         print(f"   Seed: {args.seed}")
     print()
-    
-    print("2. SSA АНАЛІЗ (МЕТОД ГУСЕНИЦЯ)")
+
+    # 2. Налаштування обчислювальних модулів (SSA та ARIMA)
+    print("2. НАЛАШТУВАННЯ ОБЧИСЛЮВАЛЬНИХ МОДУЛІВ")
     print("-" * 40)
-    
-    ssa = SSA(time_series, window_length=args.window)
-    
-    print(f"   Параметри:")
-    print(f"   - Довжина вікна (L): {args.window}")
-    print(f"   - Розмір траєкторної матриці: {ssa.L} x {ssa.K}")
-    print()
-    
-    print("   Крок 1: Вкладення (Embedding)")
-    trajectory_matrix = ssa.embed()
-    print(f"   Траєкторна матриця: {trajectory_matrix.shape}")
-    print()
-    
-    print("   Крок 2: Сингулярне розкладання (SVD)")
-    U, S, V = ssa.decompose()
-    print(f"   Знайдено сингулярних значень: {len(S)}")
-    print(f"   Перші 5: {S[:5].round(2)}")
-    print()
-    
-    contributions = ssa.get_contributions(10)
-    print("   Внесок перших 10 компонент:")
-    for i, c in enumerate(contributions):
-        print(f"   Компонента {i+1}: {c:.2f}%")
-    print()
-    
-    print("   Крок 3-4: Групування та реконструкція")
-    groups = [[0], [1, 2], list(range(3, 15))]
-    components = ssa.reconstruct(groups)
-    print(f"   Виділено груп: {len(groups)}")
-    print()
-    
-    print("3. ARIMA АНАЛІЗ")
-    print("-" * 40)
-    
+
     arima_order = (args.arima_p, args.arima_d, args.arima_q)
-    
-    print(f"   Параметри моделі ARIMA{arima_order}:")
+
+    print(f"   Модуль SSA:")
+    print(f"   - Довжина вікна (L): {args.window}")
+    print()
+    print(f"   Модуль ARIMA{arima_order}:")
     print(f"   - p = {arima_order[0]} (авторегресія)")
     print(f"   - d = {arima_order[1]} (інтегрування)")
     print(f"   - q = {arima_order[2]} (ковзне середнє)")
     print(f"   - Горизонт прогнозу: {args.forecast} точок")
     print()
-    
-    arima_results = arima_analysis(time_series, order=arima_order, forecast_steps=args.forecast)
-    
-    print(f"   Результати:")
+
+    # 3. Запуск конвеєра прогнозування
+    print("3. ЗАПУСК КОНВЕЄРА ПРОГНОЗУВАННЯ")
+    print("-" * 40)
+
+    pipeline = ForecastPipeline(
+        dataset=dataset,
+        window_length=args.window,
+        arima_order=arima_order,
+        forecast_steps=args.forecast,
+        output_dir=args.output_dir
+    )
+
+    results = pipeline.run(show_plots=not args.no_plots)
+
+    # 4. Коротке текстове резюме результатів для звіту
+    print()
+    print("4. КОРОТКИЙ ОПИС РЕЗУЛЬТАТІВ")
+    print("-" * 40)
+    ssa_analyzer = results["ssa_analyzer"]
+    arima_analyzer = results["arima_analyzer"]
+
+    print("   Внесок перших 10 компонент SSA:")
+    for i, c in enumerate(ssa_analyzer.contributions):
+        print(f"   Компонента {i + 1}: {c:.2f}%")
+
+    arima_results = arima_analyzer.results
+    print()
+    print(f"   Показники моделі ARIMA:")
     print(f"   - AIC: {arima_results['aic']:.2f}")
     print(f"   - BIC: {arima_results['bic']:.2f}")
     print(f"   - Тест Дікі-Фуллера p-value: {arima_results['adf_pvalue']:.4f}")
     print(f"   - Ряд стаціонарний: {'Так' if arima_results['is_stationary'] else 'Ні'}")
-    print()
-    
-    print("4. ВІЗУАЛІЗАЦІЯ")
-    print("-" * 40)
-    
-    output_dir = args.output_dir.rstrip('/\\')
-    
-    ssa_path = f"{output_dir}/ssa_results.png"
-    arima_path = f"{output_dir}/arima_results.png"
-    comparison_path = f"{output_dir}/comparison.png"
-    
-    if args.no_plots:
-        plt.ioff()
-    
-    print(f"   Збереження SSA графіків: {ssa_path}")
-    plot_ssa_results(ssa, time_series, components, "SSA Аналіз (Метод Гусениця)", ssa_path)
-    
-    print(f"   Збереження ARIMA графіків: {arima_path}")
-    plot_arima_results(time_series, arima_results, args.forecast, arima_path)
-    
-    print(f"   Збереження порівняння: {comparison_path}")
-    ssa_reconstructed = components[0] + components[1]
-    plot_comparison(time_series, ssa_reconstructed, arima_results['forecast'], args.forecast, comparison_path)
-    
+
     print()
     print("=" * 70)
     print("Аналіз завершено!")
     print("=" * 70)
-    
-    return ssa, arima_results, components
+
+    return results
 
 
 if __name__ == "__main__":
-    ssa, arima_results, components = main()
+    main()

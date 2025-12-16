@@ -1,0 +1,86 @@
+classDiagram
+    %% Діаграма класів основної архітектури програми SSA/ARIMA
+
+    class TimeSeriesDataset {
+        +values: np.ndarray
+        +name: str
+        +units: str
+        +source: str
+        +from_csv(file_path, column, name, units)
+        +from_weather_example(n_points, seed)
+    }
+
+    class SSA {
+        <<library>>
+        +original_series: np.ndarray
+        +L: int
+        +K: int
+        +trajectory_matrix
+        +U
+        +S
+        +V
+        +embed()
+        +decompose()
+        +reconstruct(groups)
+        +get_contributions(n)
+        +forecast(steps, use_components)
+    }
+
+    class SSAAnalyzer {
+        +dataset: TimeSeriesDataset
+        +window_length: int
+        +ssa: SSA
+        +components
+        +contributions
+        +analyze()
+        +plot(save_path)
+    }
+
+    class ARIMAAnalyzer {
+        +dataset: TimeSeriesDataset
+        +order: tuple
+        +forecast_steps: int
+        +results
+        +analyze()
+        +plot(save_path)
+    }
+
+    class ForecastPipeline {
+        +dataset: TimeSeriesDataset
+        +window_length: int
+        +arima_order: tuple
+        +forecast_steps: int
+        +output_dir: str
+        +ssa_analyzer: SSAAnalyzer
+        +arima_analyzer: ARIMAAnalyzer
+        +run(show_plots)
+    }
+
+    class RocketLaunch {
+        <<dataclass>>
+        +launch_date: str
+        +rocket_name: str
+        +payload_mass: float
+        +orbit: str
+        +metric_value: float
+    }
+
+    class RocketLaunchDB {
+        +db_path: str
+        +connect()
+        +create_tables()
+        +insert_launch(launch: RocketLaunch)
+        +ensure_demo_data()
+        +load_series(metric) np.ndarray
+    }
+
+    %% Зв'язки між класами
+    TimeSeriesDataset "1" --> "*" SSAAnalyzer : provides values
+    TimeSeriesDataset "1" --> "*" ARIMAAnalyzer : provides values
+    SSAAnalyzer "1" --> "1" SSA : uses
+    ForecastPipeline "1" --> "1" SSAAnalyzer : композиція
+    ForecastPipeline "1" --> "1" ARIMAAnalyzer : композиція
+    RocketLaunchDB "1" --> "*" RocketLaunch : зберігає
+    RocketLaunchDB ..> TimeSeriesDataset : формує часовий ряд
+
+

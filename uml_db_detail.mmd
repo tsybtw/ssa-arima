@@ -1,0 +1,25 @@
+classDiagram
+    %% Деталізована діаграма класів для модуля роботи з БД запусків ракет
+
+    class RocketLaunch {
+        <<dataclass>>
+        +launch_date: str
+        +rocket_name: str
+        +payload_mass: float
+        +orbit: str
+        +metric_value: float
+    }
+
+    class RocketLaunchDB {
+        +db_path: str
+        +conn: sqlite3.Connection
+        +connect()
+        +create_tables()
+        +insert_launch(launch: RocketLaunch)
+        +ensure_demo_data()
+        +load_series(metric) np.ndarray
+    }
+
+    RocketLaunchDB "1" --> "*" RocketLaunch : вставляє / читає
+
+

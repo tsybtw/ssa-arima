@@ -1,0 +1,54 @@
+sequenceDiagram
+    %% Основний сценарій роботи програми (користувач -> SSA/ARIMA)
+
+    participant User as Користувач
+    participant CLI as main.py / CLI
+    participant DS as TimeSeriesDataset
+    participant DB as RocketLaunchDB
+    participant Pipe as ForecastPipeline
+    participant SSAa as SSAAnalyzer
+    participant ARIMAa as ARIMAAnalyzer
+    participant SSA as SSA (library)
+
+    User->>CLI: запуск програми (python main.py ...)
+    CLI->>CLI: parse_args()
+
+    alt Використати БД запусків (--use-db)
+        CLI->>DB: RocketLaunchDB(db_path)\nconnect()
+        CLI->>DB: create_tables()
+        CLI->>DB: ensure_demo_data()
+        CLI->>DB: load_series(metric)
+        DB-->>CLI: np.ndarray (часовий ряд)
+        CLI->>DS: TimeSeriesDataset(values, name=\"Запуски ракет\", source=\"SQLite БД\")
+    else CSV / тестові дані
+        alt CSV (--data)
+            CLI->>DS: TimeSeriesDataset.from_csv(path, column)
+        else Тестові дані (погода)
+            CLI->>DS: TimeSeriesDataset.from_weather_example(points, seed)
+        end
+    end
+
+    CLI->>Pipe: ForecastPipeline(dataset, window_length,\n arima_order, forecast_steps, output_dir)
+
+    CLI->>Pipe: run(show_plots)
+
+    activate Pipe
+    Pipe->>SSAa: analyze()
+    activate SSAa
+    SSAa->>SSA: embed() / decompose() / reconstruct()
+    SSA-->>SSAa: компоненти, внесок
+    SSAa-->>Pipe: SSA результати
+    deactivate SSAa
+
+    Pipe->>ARIMAa: analyze()
+    activate ARIMAa
+    ARIMAa-->>Pipe: ARIMA результати
+    deactivate ARIMAa
+
+    Pipe->>Pipe: побудова графіків\nSSA / ARIMA / порівняння
+    Pipe-->>CLI: результати та шляхи до зображень
+    deactivate Pipe
+
+    CLI-->>User: текстовий звіт + файли графіків
+
+
