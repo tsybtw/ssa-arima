@@ -178,7 +178,7 @@ classDiagram
     RocketLaunchDB ..> TimeSeriesDataset : формує часовий ряд
 ```
 
-### Діаграма послідовності (основний сценарій)
+### Діаграма послідовності
 
 ```mermaid
 sequenceDiagram
@@ -365,8 +365,6 @@ date,temperature,humidity
 - **Бібліотеки:** numpy, pandas, matplotlib, scipy, statsmodels, sqlite3
 - **Архітектура:** Модульна з розділенням відповідальності між компонентами
 - **Бібліотека SSA:** Власна реалізація методу Caterpillar-SSA (`src/ssa/caterpillar.py`)
-
-## Додаткова інформація
 
 ### Робота з базою даних
 
