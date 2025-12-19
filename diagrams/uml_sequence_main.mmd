@@ -12,18 +12,18 @@ sequenceDiagram
 
     User->>CLI: запуск програми (python main.py ...)
     CLI->>CLI: parse_args()
-    CLI->>CLI: створення папки results/\nвідкриття output.txt для запису
-    CLI->>CLI: перенаправлення stdout\nчерез клас Tee (дублювання виводу)
+    CLI->>CLI: створення папки results/<br/>відкриття output.txt для запису
+    CLI->>CLI: перенаправлення stdout<br/>через клас Tee (дублювання виводу)
 
     alt Використати БД запусків (--use-db)
-        CLI->>DB: RocketLaunchDB(db_path=None)\n(автоматично створює data/rockets.db)
+        CLI->>DB: RocketLaunchDB(db_path=None)<br/>(автоматично створює data/rockets.db)
         CLI->>DB: connect()
         CLI->>DB: create_tables()
         CLI->>DB: ensure_demo_data(force_reload=False)
         activate DB
-        DB->>DB: load_from_csv("launches_2025__01-11.csv")\n(якщо файл існує)
-        DB->>DB: load_from_csv("launches_2025-11.csv")\n(якщо файл існує)
-        DB->>DB: insert_launch(launch, check_duplicates=True)\n(перевірка дублікатів)
+        DB->>DB: load_from_csv("launches_2025__01-11.csv")<br/>(якщо файл існує)
+        DB->>DB: load_from_csv("launches_2025-11.csv")<br/>(якщо файл існує)
+        DB->>DB: insert_launch(launch, check_duplicates=True)<br/>(перевірка дублікатів)
         deactivate DB
         CLI->>DB: load_series(metric="count_per_month_2025")
         DB-->>CLI: np.ndarray (часовий ряд)
@@ -36,7 +36,7 @@ sequenceDiagram
         end
     end
 
-    CLI->>Pipe: ForecastPipeline(dataset, window_length,\n arima_order, forecast_steps, output_dir)
+    CLI->>Pipe: ForecastPipeline(dataset, window_length,<br/> arima_order, forecast_steps, output_dir)
 
     CLI->>Pipe: run(show_plots=True, command_info=dict)
 
@@ -53,13 +53,11 @@ sequenceDiagram
     ARIMAa-->>Pipe: ARIMA результати
     deactivate ARIMAa
 
-    Pipe->>Pipe: побудова графіків\nSSA / ARIMA / порівняння
-    Pipe->>Pipe: збереження графіків:\nssa_results.png\narima_results.png\ncomparison.png
-    Pipe->>Pipe: збереження command.txt\n(інформація про команду)
+    Pipe->>Pipe: побудова графіків<br/>SSA / ARIMA / порівняння
+    Pipe->>Pipe: збереження графіків:<br/>ssa_results.png<br/>arima_results.png<br/>comparison.png
+    Pipe->>Pipe: збереження command.txt<br/>(інформація про команду)
     Pipe-->>CLI: результати та шляхи до зображень
     deactivate Pipe
 
-    CLI->>CLI: finally блок:\nвідновлення stdout\nзакриття output.txt
-    CLI-->>User: текстовий звіт + файли графіків\n+ output.txt + command.txt
-
-
+    CLI->>CLI: finally блок:<br/>відновлення stdout<br/>закриття output.txt
+    CLI-->>User: текстовий звіт + файли графіків<br/>+ output.txt + command.txt
