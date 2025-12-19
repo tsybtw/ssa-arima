@@ -1,0 +1,28 @@
+Дата та час запуску: 2025-12-19 06:10:38
+
+Використана команда:
+src/main.py --use-db --forecast-december-2025 --db-metric count_per_month_2025 --window 5 --forecast 1
+
+Параметри:
+  data: None
+  column: None
+  points: 200
+  seed: 42
+  window: 5
+  arima_p: 2
+  arima_d: 1
+  arima_q: 2
+  forecast: 1
+  output_dir: results
+  use_db: True
+  db_path: None
+  db_metric: count_per_month_2025
+  forecast_december_2025: True
+
+Дані:
+  Назва набору: Кількість запусків ракет по місяцях 2025 року
+  Джерело: SQLite БД (None)
+  Кількість точок: 11
+  Довжина вікна SSA: 5
+  Параметри ARIMA: (2, 1, 2)
+  Кроків прогнозу: 1

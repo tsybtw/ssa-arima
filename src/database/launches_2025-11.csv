@@ -1,0 +1,32 @@
+launcher,date,payload,payload_detail,orbit,location,status
+Falcon 9,2025-11-02T05:09:00Z,Bandwagon 4 (Dedicated Mid-Inclination Rideshare),Dedicated Rideshare,Low Earth Orbit,"Space Launch Complex 40 | Cape Canaveral SFS, FL, USA",Successful
+LVM-3 (GSLV Mk III),2025-11-02T11:56:00Z,CMS-03 (GSAT-7R),Communications,Geostationary Transfer Orbit,"Satish Dhawan Space Centre Second Launch Pad | Satish Dhawan Space Centre, India",Successful
+Long March 7A,2025-11-03T03:47:00Z,Yaogan 46,Government/Top Secret,Medium Earth Orbit,"201 | Wenchang Space Launch Site, People's Republic of China",Successful
+Ariane 62,2025-11-04T21:02:00Z,Sentinel-1D,Earth Science,Sun-Synchronous Orbit,"Ariane Launch Area 4 | Guiana Space Centre, French Guiana",Successful
+Electron,2025-11-05T19:51:00Z,The Nation God Navigates (iQPS Launch 5),Earth Science,Low Earth Orbit,"Rocket Lab Launch Complex 1B | Rocket Lab Launch Complex 1, Mahia Peninsula, New Zealand",Successful
+Falcon 9,2025-11-06T01:31:00Z,Starlink Group 6-81,Communications,Low Earth Orbit,"Space Launch Complex 40 | Cape Canaveral SFS, FL, USA",Successful
+Falcon 9,2025-11-06T21:13:00Z,Starlink Group 11-14,Communications,Low Earth Orbit,"Space Launch Complex 4E | Vandenberg SFB, CA, USA",Successful
+Long March 11,2025-11-08T21:01:00Z,Shiyan 32 01-03,Government/Top Secret,Low Earth Orbit,Oriental Spaceport mobile launch ship | Haiyang Oriental Spaceport,Successful
+Kinetica 1,2025-11-09T03:32:00Z,Chutian-2 01 & 02,Earth Science,Sun-Synchronous Orbit,"Launch Area 130 | Jiuquan Satellite Launch Center, People's Republic of China",Successful
+Falcon 9,2025-11-09T08:10:00Z,Starlink Group 10-51,Communications,Low Earth Orbit,"Launch Complex 39A | Kennedy Space Center, FL, USA",Successful
+Long March 12,2025-11-10T02:41:00Z,SatNet LEO Group 13,Communications,Low Earth Orbit,"Commercial LC-2 | Wenchang Space Launch Site, People's Republic of China",Successful
+Ceres-1,2025-11-10T04:02:00Z,Jilin-1 High Resolution-04C and others,Earth Science,Sun-Synchronous Orbit,"Launch Area 95A | Jiuquan Satellite Launch Center, People's Republic of China",Failure
+Falcon 9,2025-11-11T03:21:00Z,Starlink Group 6-87,Communications,Low Earth Orbit,"Space Launch Complex 40 | Cape Canaveral SFS, FL, USA",Successful
+New Glenn,2025-11-13T20:55:00Z,EscaPADE,Planetary Science,Mars Orbit,"Launch Complex 36A | Cape Canaveral SFS, FL, USA",Successful
+Atlas V 551,2025-11-14T03:04:00Z,ViaSat-3 F2 (ViaSat-3 EMEA),Communications,Geostationary Transfer Orbit,"Space Launch Complex 41 | Cape Canaveral SFS, FL, USA",Successful
+Falcon 9,2025-11-15T03:08:00Z,Starlink Group 6-89,Communications,Low Earth Orbit,"Launch Complex 39A | Kennedy Space Center, FL, USA",Successful
+Falcon 9,2025-11-15T06:44:00Z,Starlink Group 6-85,Communications,Low Earth Orbit,"Space Launch Complex 40 | Cape Canaveral SFS, FL, USA",Successful
+Falcon 9,2025-11-17T05:21:00Z,Sentinel-6B,Earth Science,Low Earth Orbit,"Space Launch Complex 4E | Vandenberg SFB, CA, USA",Successful
+Electron,2025-11-18T13:00:00Z,Prometheus Run (VAN),Government/Top Secret,Suborbital,"Rocket Lab Launch Complex 2 (Launch Area 0 C) | Wallops Flight Facility, Virginia, USA",Successful
+Falcon 9,2025-11-19T00:12:00Z,Starlink Group 6-94,Communications,Low Earth Orbit,"Space Launch Complex 40 | Cape Canaveral SFS, FL, USA",Successful
+Long March 2C,2025-11-19T04:01:00Z,Shijian 30 A-C,Government/Top Secret,Low Earth Orbit,"Launch Area 4 (SLS-2 / 603) | Jiuquan Satellite Launch Center, People's Republic of China",Successful
+Electron,2025-11-20T12:43:00Z,Follow My Speed (BlackSky Gen-3 3),Earth Science,Low Earth Orbit,"Rocket Lab Launch Complex 1A | Rocket Lab Launch Complex 1, Mahia Peninsula, New Zealand",Successful
+Falcon 9,2025-11-21T03:39:00Z,Starlink Group 6-78,Communications,Low Earth Orbit,"Launch Complex 39A | Kennedy Space Center, FL, USA",Successful
+Long March 3B/E,2025-11-21T10:55:00Z,TJSW-21,Government/Top Secret,Elliptical Orbit,"Launch Complex 2 (LC-2) | Xichang Satellite Launch Center, People's Republic of China",Successful
+Falcon 9,2025-11-22T07:53:00Z,Starlink Group 6-79,Communications,Low Earth Orbit,"Space Launch Complex 40 | Cape Canaveral SFS, FL, USA",Successful
+Falcon 9,2025-11-23T08:48:00Z,Starlink Group 11-30,Communications,Low Earth Orbit,"Space Launch Complex 4E | Vandenberg SFB, CA, USA",Successful
+Long March 2F/G,2025-11-25T04:11:00Z,Shenzhou 22,Human Exploration,Low Earth Orbit,"Launch Area 4 (SLS-1 / 921) | Jiuquan Satellite Launch Center, People's Republic of China",Successful
+Angara 1.2,2025-11-25T13:42:00Z,"3 x Rodnik (Kosmos 2597, 2598, 2599)",Government/Top Secret,Low Earth Orbit,"35/1 | Plesetsk Cosmodrome, Russian Federation",Successful
+Nuri,2025-11-26T16:13:00Z,CAS500-3,Earth Science,Sun-Synchronous Orbit,"LC-2 | Naro Space Center, South Korea",Successful
+Soyuz 2.1a,2025-11-27T09:27:00Z,Soyuz MS-28,Human Exploration,Low Earth Orbit,"31/6 | Baikonur Cosmodrome, Republic of Kazakhstan",Successful
+Falcon 9,2025-11-28T18:44:00Z,Transporter 15 (Dedicated SSO Rideshare),Dedicated Rideshare,Sun-Synchronous Orbit,"Space Launch Complex 4E | Vandenberg SFB, CA, USA",Successful
