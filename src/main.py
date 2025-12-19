@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 from datetime import datetime
+import io
 
 # Додаємо корінь проекту до sys.path для коректної роботи імпортів
 project_root = Path(__file__).parent.parent
@@ -19,6 +20,23 @@ from src.ssa import SSA as LibrarySSA
 from src.database import RocketLaunchDB
 
 warnings.filterwarnings('ignore')
+
+
+class Tee:
+    """
+    Клас для дублювання виводу в консоль та файл одночасно.
+    """
+    def __init__(self, *files):
+        self.files = files
+    
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
+            f.flush()
+    
+    def flush(self):
+        for f in self.files:
+            f.flush()
 
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
@@ -451,177 +469,201 @@ class ForecastPipeline:
 def main():
     args = parse_args()
     
-    # Формуємо повну команду для збереження
-    full_command = ' '.join(sys.argv)
+    # Створюємо папку для результатів
+    output_dir = Path(args.output_dir).expanduser()
+    output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Створюємо словник аргументів для збереження
-    args_dict = {
-        'data': args.data,
-        'column': args.column,
-        'points': args.points,
-        'seed': args.seed,
-        'window': args.window,
-        'arima_p': args.arima_p,
-        'arima_d': args.arima_d,
-        'arima_q': args.arima_q,
-        'forecast': args.forecast,
-        'output_dir': args.output_dir,
-        'use_db': args.use_db,
-        'db_path': args.db_path,
-        'db_metric': args.db_metric,
-        'forecast_december_2025': args.forecast_december_2025,
-    }
+    # Відкриваємо файл для збереження виводу
+    output_file_path = output_dir / "output.txt"
+    output_file = open(output_file_path, 'w', encoding='utf-8')
     
-    print("=" * 70)
-    print("СИНГУЛЯРНИЙ СПЕКТРАЛЬНИЙ АНАЛІЗ (SSA) - МЕТОД ГУСЕНИЦЯ (CATERPILLAR)")
-    print("ТА ARIMA АНАЛІЗ ЧАСОВИХ РЯДІВ")
-    print("=" * 70)
-    print()
+    # Перенаправляємо stdout для дублювання виводу в файл та консоль
+    original_stdout = sys.stdout
+    sys.stdout = Tee(sys.stdout, output_file)
     
-    # 1. Блок «Джерело даних»
-    #    На UML-діаграмі це окремий прямокутник TimeSeriesDataset.
-    print("1. ЗАВАНТАЖЕННЯ ДАНИХ")
-    print("-" * 40)
-
-    if args.use_db:
-        print(f"   Використання бази даних: {args.db_path}")
-        db = RocketLaunchDB(db_path=args.db_path)
-        db.connect()
-        db.create_tables()
-        db.ensure_demo_data()
+    try:
+        # Формуємо повну команду для збереження
+        full_command = ' '.join(sys.argv)
         
-        # Якщо потрібен прогноз на грудень 2025, використовуємо дані за місяцями 2025 року
-        if args.forecast_december_2025:
-            metric = 'count_per_month_2025'
-            dataset_name = "Кількість запусків ракет по місяцях 2025 року"
-        else:
-            metric = args.db_metric
-            dataset_name = f"Дані про запуски ракет ({metric})"
+        # Створюємо словник аргументів для збереження
+        args_dict = {
+            'data': args.data,
+            'column': args.column,
+            'points': args.points,
+            'seed': args.seed,
+            'window': args.window,
+            'arima_p': args.arima_p,
+            'arima_d': args.arima_d,
+            'arima_q': args.arima_q,
+            'forecast': args.forecast,
+            'output_dir': args.output_dir,
+            'use_db': args.use_db,
+            'db_path': args.db_path,
+            'db_metric': args.db_metric,
+            'forecast_december_2025': args.forecast_december_2025,
+        }
         
-        series = db.load_series(metric=metric)
-        dataset = TimeSeriesDataset(
-            series,
-            name=dataset_name,
-            units="кількість запусків",
-            source=f"SQLite БД ({args.db_path})"
-        )
-        print(f"   Завантажено точок: {len(dataset.values)}")
-        if args.forecast_december_2025:
-            print(f"   Дані за місяцями 2025 року (січень-листопад)")
-            print(f"   Прогнозуємо грудень 2025 року")
-    elif args.data:
-        print(f"   Завантаження з файлу: {args.data}")
-        dataset = TimeSeriesDataset.from_csv(
-            args.data,
-            column=args.column,
-            name="Користувацький часовий ряд",
-            units="ум. од."
-        )
-        print(f"   Завантажено точок: {len(dataset.values)}")
-    else:
-        print(f"   Генерація тестових даних (приклад «погода»)...")
-        dataset = TimeSeriesDataset.from_weather_example(
-            n_points=args.points,
-            seed=args.seed
-        )
-        print(f"   Згенеровано точок: {len(dataset.values)}")
-        print(f"   Seed: {args.seed}")
-    print()
-
-    # 2. Налаштування обчислювальних модулів (SSA та ARIMA)
-    print("2. НАЛАШТУВАННЯ ОБЧИСЛЮВАЛЬНИХ МОДУЛІВ")
-    print("-" * 40)
-
-    arima_order = (args.arima_p, args.arima_d, args.arima_q)
-
-    print(f"   Модуль SSA:")
-    print(f"   - Довжина вікна (L): {args.window}")
-    print()
-    print(f"   Модуль ARIMA{arima_order}:")
-    print(f"   - p = {arima_order[0]} (авторегресія)")
-    print(f"   - d = {arima_order[1]} (інтегрування)")
-    print(f"   - q = {arima_order[2]} (ковзне середнє)")
-    print(f"   - Горизонт прогнозу: {args.forecast} точок")
-    print()
-
-    # 3. Запуск конвеєра прогнозування
-    print("3. ЗАПУСК КОНВЕЄРА ПРОГНОЗУВАННЯ")
-    print("-" * 40)
-
-    pipeline = ForecastPipeline(
-        dataset=dataset,
-        window_length=args.window,
-        arima_order=arima_order,
-        forecast_steps=args.forecast,
-        output_dir=args.output_dir
-    )
-
-    # Підготовка інформації про команду для збереження
-    command_info = {
-        'command': full_command,
-        'args': args_dict
-    }
-
-    results = pipeline.run(show_plots=not args.no_plots, command_info=command_info)
-
-    # 4. Коротке текстове резюме результатів для звіту
-    print()
-    print("4. КОРОТКИЙ ОПИС РЕЗУЛЬТАТІВ")
-    print("-" * 40)
-    ssa_analyzer = results["ssa_analyzer"]
-    arima_analyzer = results["arima_analyzer"]
-
-    print("   Внесок перших 10 компонент SSA:")
-    for i, c in enumerate(ssa_analyzer.contributions):
-        print(f"   Компонента {i + 1}: {c:.2f}%")
-
-    arima_results = arima_analyzer.results
-    print()
-    print(f"   Показники моделі ARIMA:")
-    print(f"   - AIC: {arima_results['aic']:.2f}")
-    print(f"   - BIC: {arima_results['bic']:.2f}")
-    print(f"   - Тест Дікі-Фуллера p-value: {arima_results['adf_pvalue']:.4f}")
-    print(f"   - Ряд стаціонарний: {'Так' if arima_results['is_stationary'] else 'Ні'}")
-
-    # 5. Прогноз на грудень 2025 року (якщо потрібно)
-    if args.forecast_december_2025:
+        # Додаємо заголовок з датою та часом в файл
+        print(f"Дата та час запуску: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Команда: {full_command}")
         print()
-        print("5. ПРОГНОЗ НА ГРУДЕНЬ 2025 РОКУ")
+        
+        print("=" * 70)
+        print("СИНГУЛЯРНИЙ СПЕКТРАЛЬНИЙ АНАЛІЗ (SSA) - МЕТОД ГУСЕНИЦЯ (CATERPILLAR)")
+        print("ТА ARIMA АНАЛІЗ ЧАСОВИХ РЯДІВ")
+        print("=" * 70)
+        print()
+        
+        # 1. Блок «Джерело даних»
+        #    На UML-діаграмі це окремий прямокутник TimeSeriesDataset.
+        print("1. ЗАВАНТАЖЕННЯ ДАНИХ")
         print("-" * 40)
-        
-        # Отримуємо прогноз від ARIMA (останній крок - це прогноз на грудень)
-        arima_forecast = arima_results['forecast']
-        december_forecast = arima_forecast[-1] if len(arima_forecast) > 0 else None
-        
-        # Також спробуємо отримати прогноз від SSA
-        ssa_forecast = ssa_analyzer.ssa.forecast(steps=1, use_components=[0, 1, 2])
-        ssa_december_forecast = ssa_forecast[-1] if len(ssa_forecast) > 0 else None
-        
-        if december_forecast is not None:
-            print(f"   Прогноз ARIMA на грудень 2025: {december_forecast:.2f} запусків")
-        if ssa_december_forecast is not None:
-            print(f"   Прогноз SSA на грудень 2025: {ssa_december_forecast:.2f} запусків")
-        
-        # Середнє значення прогнозів
-        if december_forecast is not None and ssa_december_forecast is not None:
-            avg_forecast = (december_forecast + ssa_december_forecast) / 2
-            print(f"   Середній прогноз на грудень 2025: {avg_forecast:.2f} запусків")
-        
-        # Показуємо дані за попередні місяці для контексту
-        if len(dataset.values) >= 11:
+
+        if args.use_db:
+            print(f"   Використання бази даних: {args.db_path}")
+            db = RocketLaunchDB(db_path=args.db_path)
+            db.connect()
+            db.create_tables()
+            db.ensure_demo_data()
+            
+            # Якщо потрібен прогноз на грудень 2025, використовуємо дані за місяцями 2025 року
+            if args.forecast_december_2025:
+                metric = 'count_per_month_2025'
+                dataset_name = "Кількість запусків ракет по місяцях 2025 року"
+            else:
+                metric = args.db_metric
+                dataset_name = f"Дані про запуски ракет ({metric})"
+            
+            series = db.load_series(metric=metric)
+            dataset = TimeSeriesDataset(
+                series,
+                name=dataset_name,
+                units="кількість запусків",
+                source=f"SQLite БД ({args.db_path})"
+            )
+            print(f"   Завантажено точок: {len(dataset.values)}")
+            if args.forecast_december_2025:
+                print(f"   Дані за місяцями 2025 року (січень-листопад)")
+                print(f"   Прогнозуємо грудень 2025 року")
+        elif args.data:
+            print(f"   Завантаження з файлу: {args.data}")
+            dataset = TimeSeriesDataset.from_csv(
+                args.data,
+                column=args.column,
+                name="Користувацький часовий ряд",
+                units="ум. од."
+            )
+            print(f"   Завантажено точок: {len(dataset.values)}")
+        else:
+            print(f"   Генерація тестових даних (приклад «погода»)...")
+            dataset = TimeSeriesDataset.from_weather_example(
+                n_points=args.points,
+                seed=args.seed
+            )
+            print(f"   Згенеровано точок: {len(dataset.values)}")
+            print(f"   Seed: {args.seed}")
+        print()
+
+        # 2. Налаштування обчислювальних модулів (SSA та ARIMA)
+        print("2. НАЛАШТУВАННЯ ОБЧИСЛЮВАЛЬНИХ МОДУЛІВ")
+        print("-" * 40)
+
+        arima_order = (args.arima_p, args.arima_d, args.arima_q)
+
+        print(f"   Модуль SSA:")
+        print(f"   - Довжина вікна (L): {args.window}")
+        print()
+        print(f"   Модуль ARIMA{arima_order}:")
+        print(f"   - p = {arima_order[0]} (авторегресія)")
+        print(f"   - d = {arima_order[1]} (інтегрування)")
+        print(f"   - q = {arima_order[2]} (ковзне середнє)")
+        print(f"   - Горизонт прогнозу: {args.forecast} точок")
+        print()
+
+        # 3. Запуск конвеєра прогнозування
+        print("3. ЗАПУСК КОНВЕЄРА ПРОГНОЗУВАННЯ")
+        print("-" * 40)
+
+        pipeline = ForecastPipeline(
+            dataset=dataset,
+            window_length=args.window,
+            arima_order=arima_order,
+            forecast_steps=args.forecast,
+            output_dir=args.output_dir
+        )
+
+        # Підготовка інформації про команду для збереження
+        command_info = {
+            'command': full_command,
+            'args': args_dict
+        }
+
+        results = pipeline.run(show_plots=not args.no_plots, command_info=command_info)
+
+        # 4. Коротке текстове резюме результатів для звіту
+        print()
+        print("4. КОРОТКИЙ ОПИС РЕЗУЛЬТАТІВ")
+        print("-" * 40)
+        ssa_analyzer = results["ssa_analyzer"]
+        arima_analyzer = results["arima_analyzer"]
+
+        print("   Внесок перших 10 компонент SSA:")
+        for i, c in enumerate(ssa_analyzer.contributions):
+            print(f"   Компонента {i + 1}: {c:.2f}%")
+
+        arima_results = arima_analyzer.results
+        print()
+        print(f"   Показники моделі ARIMA:")
+        print(f"   - AIC: {arima_results['aic']:.2f}")
+        print(f"   - BIC: {arima_results['bic']:.2f}")
+        print(f"   - Тест Дікі-Фуллера p-value: {arima_results['adf_pvalue']:.4f}")
+        print(f"   - Ряд стаціонарний: {'Так' if arima_results['is_stationary'] else 'Ні'}")
+
+        # 5. Прогноз на грудень 2025 року (якщо потрібно)
+        if args.forecast_december_2025:
             print()
-            print("   Дані за попередні місяці 2025 року:")
-            months = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
-                     'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад']
-            for i, (month, value) in enumerate(zip(months, dataset.values)):
-                print(f"   {month}: {value:.0f} запусків")
+            print("5. ПРОГНОЗ НА ГРУДЕНЬ 2025 РОКУ")
+            print("-" * 40)
+            
+            # Отримуємо прогноз від ARIMA (останній крок - це прогноз на грудень)
+            arima_forecast = arima_results['forecast']
+            december_forecast = arima_forecast[-1] if len(arima_forecast) > 0 else None
+            
+            # Також спробуємо отримати прогноз від SSA
+            ssa_forecast = ssa_analyzer.ssa.forecast(steps=1, use_components=[0, 1, 2])
+            ssa_december_forecast = ssa_forecast[-1] if len(ssa_forecast) > 0 else None
+            
+            if december_forecast is not None:
+                print(f"   Прогноз ARIMA на грудень 2025: {december_forecast:.2f} запусків")
+            if ssa_december_forecast is not None:
+                print(f"   Прогноз SSA на грудень 2025: {ssa_december_forecast:.2f} запусків")
+            
+            # Середнє значення прогнозів
+            if december_forecast is not None and ssa_december_forecast is not None:
+                avg_forecast = (december_forecast + ssa_december_forecast) / 2
+                print(f"   Середній прогноз на грудень 2025: {avg_forecast:.2f} запусків")
+            
+            # Показуємо дані за попередні місяці для контексту
+            if len(dataset.values) >= 11:
+                print()
+                print("   Дані за попередні місяці 2025 року:")
+                months = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+                         'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад']
+                for i, (month, value) in enumerate(zip(months, dataset.values)):
+                    print(f"   {month}: {value:.0f} запусків")
 
-    print()
-    print("=" * 70)
-    print("Аналіз завершено!")
-    print("=" * 70)
-
-    return results
+        print()
+        print("=" * 70)
+        print("Аналіз завершено!")
+        print("=" * 70)
+        
+        return results
+    
+    finally:
+        # Відновлюємо оригінальний stdout та закриваємо файл
+        sys.stdout = original_stdout
+        output_file.close()
+        print(f"Вивід збережено в файл: {output_file_path}")
 
 
 if __name__ == "__main__":
