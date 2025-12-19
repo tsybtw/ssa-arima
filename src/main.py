@@ -181,10 +181,29 @@ def plot_comparison(original, ssa_reconstructed, arima_forecast, forecast_steps,
     fig, ax = plt.subplots(figsize=(14, 6))
     n = len(original)
     
+    # Конвертуємо arima_forecast в numpy array для надійності
+    arima_forecast = np.array(arima_forecast)
+    
     ax.plot(range(n), original, 'b-', alpha=0.7, label='Вихідний ряд', linewidth=1)
     ax.plot(range(n), ssa_reconstructed, 'g-', label='SSA реконструкція', linewidth=1.5)
-    ax.plot(range(n, n + forecast_steps), arima_forecast, 'r--', 
-            label='ARIMA прогноз', linewidth=2)
+    
+    # Побудова ARIMA прогнозу
+    forecast_x = list(range(n, n + forecast_steps))
+    forecast_y = arima_forecast.flatten()[:forecast_steps]  # Переконуємося що це 1D масив
+    
+    # Якщо тільки одна точка, додаємо попередню точку для з'єднання лінії
+    if forecast_steps == 1:
+        # Додаємо останнє значення вихідного ряду для з'єднання
+        forecast_x = [n - 1] + forecast_x
+        forecast_y = [original[-1]] + list(forecast_y)
+        # Малюємо лінію з останньої точки до прогнозу
+        ax.plot(forecast_x, forecast_y, 'r--', 
+                label='ARIMA прогноз', linewidth=2, marker='o', markersize=6)
+    else:
+        # Для кількох точок малюємо звичайну лінію
+        ax.plot(forecast_x, forecast_y, 'r--', 
+                label='ARIMA прогноз', linewidth=2, marker='o', markersize=4)
+    
     ax.axvline(x=n-1, color='gray', linestyle=':', label='Початок прогнозу')
     ax.set_title('Порівняння методів: SSA (Гусениця) vs ARIMA', fontsize=12)
     ax.set_xlabel('Час')
