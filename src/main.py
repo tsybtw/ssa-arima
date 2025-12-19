@@ -145,18 +145,37 @@ def plot_arima_results(time_series, arima_results, forecast_steps, save_path):
     fig, axes = plt.subplots(2, 1, figsize=(12, 8))
     n = len(time_series)
     
+    # Конвертуємо forecast в numpy array
+    forecast = np.array(arima_results['forecast']).flatten()[:forecast_steps]
+    
     axes[0].plot(range(n), time_series, 'b-', label='Вихідний ряд')
-    axes[0].plot(range(n, n + forecast_steps), arima_results['forecast'], 
-                 'r-', linewidth=2, label='Прогноз ARIMA')
+    
+    # Побудова ARIMA прогнозу з підтримкою однієї точки
+    forecast_x = list(range(n, n + forecast_steps))
+    forecast_y = forecast
+    
+    # Якщо тільки одна точка, додаємо попередню точку для з'єднання лінії
+    if forecast_steps == 1:
+        forecast_x = [n - 1] + forecast_x
+        forecast_y = [time_series[-1]] + list(forecast_y)
+        axes[0].plot(forecast_x, forecast_y, 'r-', linewidth=2, 
+                    label='Прогноз ARIMA', marker='o', markersize=6)
+    else:
+        axes[0].plot(forecast_x, forecast_y, 'r-', linewidth=2, 
+                    label='Прогноз ARIMA', marker='o', markersize=4)
+    
+    # Довірчий інтервал
     conf_int = arima_results['conf_int']
     if hasattr(conf_int, 'iloc'):
-        lower = conf_int.iloc[:, 0]
-        upper = conf_int.iloc[:, 1]
+        lower = conf_int.iloc[:, 0].values
+        upper = conf_int.iloc[:, 1].values
     else:
         lower = conf_int[:, 0]
         upper = conf_int[:, 1]
+    
+    # Для довірчого інтервалу використовуємо оригінальні координати
     axes[0].fill_between(range(n, n + forecast_steps),
-                         lower, upper,
+                         lower[:forecast_steps], upper[:forecast_steps],
                          color='red', alpha=0.2, label='95% довірчий інтервал')
     axes[0].set_title('ARIMA: Прогнозування часового ряду')
     axes[0].set_xlabel('Час')
