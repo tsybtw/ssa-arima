@@ -30,19 +30,20 @@ classDiagram
         +dataset: TimeSeriesDataset
         +window_length: int
         +ssa: SSA
-        +components
-        +contributions
-        +analyze()
-        +plot(save_path)
+        +components: list
+        +groups: list
+        +contributions: np.ndarray
+        +analyze() list
+        +plot(save_path) Path
     }
 
     class ARIMAAnalyzer {
         +dataset: TimeSeriesDataset
         +order: tuple
         +forecast_steps: int
-        +results
-        +analyze()
-        +plot(save_path)
+        +results: dict
+        +analyze() dict
+        +plot(save_path) Path
     }
 
     class ForecastPipeline {
@@ -50,10 +51,10 @@ classDiagram
         +window_length: int
         +arima_order: tuple
         +forecast_steps: int
-        +output_dir: str
+        +output_dir: Path
         +ssa_analyzer: SSAAnalyzer
         +arima_analyzer: ARIMAAnalyzer
-        +run(show_plots)
+        +run(show_plots: bool, command_info: dict)
     }
 
     class RocketLaunch {
@@ -67,11 +68,20 @@ classDiagram
 
     class RocketLaunchDB {
         +db_path: str
+        +conn: Optional[sqlite3.Connection]
         +connect()
         +create_tables()
-        +insert_launch(launch: RocketLaunch)
-        +ensure_demo_data()
-        +load_series(metric) np.ndarray
+        +insert_launch(launch: RocketLaunch, check_duplicates: bool)
+        +ensure_demo_data(force_reload: bool)
+        +load_from_csv(csv_path: str, clear_existing: bool)
+        +load_series(metric: str) np.ndarray
+    }
+
+    class Tee {
+        <<utility>>
+        +files: tuple
+        +write(obj: str)
+        +flush()
     }
 
     %% Зв'язки між класами

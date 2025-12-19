@@ -12,12 +12,14 @@ classDiagram
 
     class RocketLaunchDB {
         +db_path: str
-        +conn: sqlite3.Connection
+        +conn: Optional[sqlite3.Connection]
+        +__init__(db_path: str = None)
         +connect()
         +create_tables()
-        +insert_launch(launch: RocketLaunch)
-        +ensure_demo_data()
-        +load_series(metric) np.ndarray
+        +insert_launch(launch: RocketLaunch, check_duplicates: bool = True)
+        +ensure_demo_data(force_reload: bool = False)
+        +load_from_csv(csv_path: str, clear_existing: bool = False)
+        +load_series(metric: str = "count_per_year") np.ndarray
     }
 
     RocketLaunchDB "1" --> "*" RocketLaunch : вставляє / читає
